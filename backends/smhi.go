@@ -15,25 +15,29 @@ import (
 type smhiConfig struct {
 }
 
-type smhiDataPoint struct {
-	Level     int           `json:"level"`
-	LevelType string        `json:"levelType"`
-	Name      string        `json:"name"`
-	Unit      string        `json:"unit"`
-	Values    []interface{} `json:"values"`
+type smhiData struct {
+	AirTemperature          float64 `json:"air_temperature"`
+	WindFromDirection       float64 `json:"wind_from_direction"`
+	WindSpeed               float64 `json:"wind_speed"`
+	WindSpeedOfGust         float64 `json:"wind_speed_of_gust"`
+	RelativeHumidity        float64 `json:"relative_humidity"`
+	VisibilityInAir         float64 `json:"visibility_in_air"`
+	PrecipitationAmountMean float64 `json:"precipitation_amount_mean"`
+	SymbolCode              float64 `json:"symbol_code"`
 }
 
 type smhiTimeSeries struct {
-	ValidTime  string           `json:"validTime"`
-	Parameters []*smhiDataPoint `json:"parameters"`
+	Time                        string   `json:"time"`
+	IntervalParametersStartTime string   `json:"intervalParametersStartTime"`
+	Data                        smhiData `json:"data"`
 }
 
 type smhiGeometry struct {
-	Coordinates [][]float32 `json:"coordinates"`
+	Coordinates []float32 `json:"coordinates"`
 }
 
 type smhiResponse struct {
-	ApprovedTime  string            `json:"approvedTime"`
+	CreatedTime   string            `json:"createdTime"`
 	ReferenceTime string            `json:"referenceTime"`
 	Geometry      smhiGeometry      `json:"geometry"`
 	TimeSeries    []*smhiTimeSeries `json:"timeSeries"`
@@ -45,8 +49,9 @@ type smhiCondition struct {
 }
 
 const (
-	// see http://opendata.smhi.se/apidocs/metfcst/index.html
-	smhiWuri = "https://opendata-download-metfcst.smhi.se/api/category/pmp3g/version/2/geotype/point/lon/%s/lat/%s/data.json"
+	// Ensure this URL is still valid for the new API version. Left unchanged based on prompt context.
+	//smhiWuri = "https://opendata-download-metfcst.smhi.se/api/category/pmp3g/version/2/geotype/point/lon/%s/lat/%s/data.json"
+	smhiWuri = "https://opendata-download-metfcst.smhi.se/api/category/snow1g/version/1/geotype/point/lon/%s/lat/%s/data.json"
 )
 
 var (
@@ -109,7 +114,6 @@ func (c *smhiConfig) fetch(url string) (*smhiResponse, error) {
 		return nil, fmt.Errorf("Unable to parse response (%s): %v", url, err)
 	}
 	return &response, nil
-
 }
 
 func (c *smhiConfig) Fetch(location string, numDays int) (ret iface.Data) {
@@ -128,10 +132,11 @@ func (c *smhiConfig) Fetch(location string, numDays int) (ret iface.Data) {
 	ret.Current = c.parseCurrent(resp)
 	ret.Forecast = c.parseForecast(resp, numDays)
 	coordinates := resp.Geometry.Coordinates
-	ret.GeoLoc = &iface.LatLon{Latitude: coordinates[0][1], Longitude: coordinates[0][0]}
+	ret.GeoLoc = &iface.LatLon{Latitude: coordinates[1], Longitude: coordinates[0]}
 	ret.Location = location + " (Forecast provided by SMHI)"
 	return ret
 }
+
 func (c *smhiConfig) parseForecast(response *smhiResponse, numDays int) (days []iface.Day) {
 	if numDays > 10 {
 		numDays = 10
@@ -147,7 +152,7 @@ func (c *smhiConfig) parseForecast(response *smhiResponse, numDays int) (days []
 			break
 		}
 
-		ts, err := time.Parse(time.RFC3339, prediction.ValidTime)
+		ts, err := time.Parse(time.RFC3339, prediction.Time)
 		if err != nil {
 			log.Fatalf("Failed to parse timestamp: %v\n", err)
 		}
@@ -172,7 +177,7 @@ func (c *smhiConfig) parseCurrent(forecast *smhiResponse) (cnd iface.Cond) {
 	var currentTime time.Time = time.Now().UTC()
 
 	for _, prediction := range forecast.TimeSeries {
-		ts, err := time.Parse(time.RFC3339, prediction.ValidTime)
+		ts, err := time.Parse(time.RFC3339, prediction.Time)
 		if err != nil {
 			log.Fatalf("Failed to parse timestamp: %v\n", err)
 		}
@@ -185,43 +190,36 @@ func (c *smhiConfig) parseCurrent(forecast *smhiResponse) (cnd iface.Cond) {
 }
 
 func (c *smhiConfig) parsePrediction(prediction *smhiTimeSeries) (cnd iface.Cond) {
-	ts, err := time.Parse(time.RFC3339, prediction.ValidTime)
+	ts, err := time.Parse(time.RFC3339, prediction.Time)
 	if err != nil {
 		log.Fatalf("Failed to parse timestamp: %v\n", err)
 	}
 	cnd.Time = ts
 
-	for _, param := range prediction.Parameters {
-		switch param.Name {
-		case "pmean":
-			precip := float32(param.Values[0].(float64) / 1000) // Convert mm/h to m/h
-			cnd.PrecipM = &precip
-		case "vis":
-			vis := float32(param.Values[0].(float64) * 1000) // Convert km to m
-			cnd.VisibleDistM = &vis
-		case "t":
-			temp := float32(param.Values[0].(float64))
-			cnd.TempC = &temp
-		case "Wsymb2":
-			condition := weatherConditions[int(param.Values[0].(float64))]
-			cnd.Code = condition.WeatherCode
-			cnd.Desc = condition.Description
-		case "ws":
-			windSpeed := float32(param.Values[0].(float64) * 3.6) // convert m/s to km/h
-			cnd.WindspeedKmph = &windSpeed
-		case "gust":
-			gustSpeed := float32(param.Values[0].(float64) * 3.6) // convert m/s to km/h
-			cnd.WindGustKmph = &gustSpeed
-		case "wd":
-			val := int(param.Values[0].(float64))
-			cnd.WinddirDegree = &val
-		case "r":
-			val := int(param.Values[0].(float64))
-			cnd.Humidity = &val
-		default:
-			continue
-		}
-	}
+	precip := float32(prediction.Data.PrecipitationAmountMean / 1000) // Convert mm/h to m/h
+	cnd.PrecipM = &precip
+
+	vis := float32(prediction.Data.VisibilityInAir * 1000) // Convert km to m
+	cnd.VisibleDistM = &vis
+
+	temp := float32(prediction.Data.AirTemperature)
+	cnd.TempC = &temp
+
+	condition := weatherConditions[int(prediction.Data.SymbolCode)]
+	cnd.Code = condition.WeatherCode
+	cnd.Desc = condition.Description
+
+	windSpeed := float32(prediction.Data.WindSpeed * 3.6) // convert m/s to km/h
+	cnd.WindspeedKmph = &windSpeed
+
+	gustSpeed := float32(prediction.Data.WindSpeedOfGust * 3.6) // convert m/s to km/h
+	cnd.WindGustKmph = &gustSpeed
+
+	wd := int(prediction.Data.WindFromDirection)
+	cnd.WinddirDegree = &wd
+
+	humidity := int(prediction.Data.RelativeHumidity)
+	cnd.Humidity = &humidity
 
 	return cnd
 }
