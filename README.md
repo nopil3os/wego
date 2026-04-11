@@ -119,6 +119,3 @@ Select a frontend with the `--frontend` flag or by setting `frontend=…` in `.w
 | `json` | JSON output, suitable for piping to other tools. |
 
 Example: `wego --frontend emoji London`
-
-TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
-THIS SOFTWARE.
