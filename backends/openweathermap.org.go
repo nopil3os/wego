@@ -56,7 +56,7 @@ type dataBlock struct {
 }
 
 const (
-	openweatherURI = "http://api.openweathermap.org/data/2.5/forecast?%s&appid=%s&units=metric&lang=%s"
+	openweatherURI = "https://api.openweathermap.org/data/2.5/forecast?%s&appid=%s&units=metric&lang=%s"
 )
 
 func (c *openWeatherConfig) Setup() {
