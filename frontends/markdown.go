@@ -223,18 +223,18 @@ func (c *mdConfig) Setup() {
 
 func (c *mdConfig) Render(r iface.Data, unitSystem iface.UnitSystem) {
 	c.unit = unitSystem
-	fmt.Printf("## Weather for %s%s\n\n", r.Location, c.formatGeo(r.GeoLoc))
+	_, _ = fmt.Printf("## Weather for %s%s\n\n", r.Location, c.formatGeo(r.GeoLoc))
 	stdout := colorable.NewNonColorable(os.Stdout)
 
 	// Get unpadded content strings and icon for current conditions
 	contentStrings, icon := c.formatCond(r.Current, true)
 
 	// Print current conditions with icons and leading space
-	fmt.Fprintln(stdout, " "+mdPad(contentStrings[0], 25))                             // Description
-	fmt.Fprintln(stdout, " "+mdPad(fmt.Sprintf("%s %s", icon, contentStrings[1]), 25)) // Temp
-	fmt.Fprintln(stdout, " "+mdPad(fmt.Sprintf("🌬️ %s", contentStrings[2]), 25))       // Wind
-	fmt.Fprintln(stdout, " "+mdPad(fmt.Sprintf("👁️ %s", contentStrings[3]), 25))       // Visibility
-	fmt.Fprintln(stdout, " "+mdPad(fmt.Sprintf("💧 %s", contentStrings[4]), 25))        // Rain
+	_, _ = fmt.Fprintln(stdout, " "+mdPad(contentStrings[0], 25))                             // Description
+	_, _ = fmt.Fprintln(stdout, " "+mdPad(fmt.Sprintf("%s %s", icon, contentStrings[1]), 25)) // Temp
+	_, _ = fmt.Fprintln(stdout, " "+mdPad(fmt.Sprintf("🌬️ %s", contentStrings[2]), 25))       // Wind
+	_, _ = fmt.Fprintln(stdout, " "+mdPad(fmt.Sprintf("👁️ %s", contentStrings[3]), 25))       // Visibility
+	_, _ = fmt.Fprintln(stdout, " "+mdPad(fmt.Sprintf("💧 %s", contentStrings[4]), 25))        // Rain
 
 	if len(r.Forecast) == 0 {
 		return
@@ -244,7 +244,7 @@ func (c *mdConfig) Render(r iface.Data, unitSystem iface.UnitSystem) {
 	}
 	for _, d := range r.Forecast {
 		for _, val := range c.printDay(d) {
-			fmt.Fprintln(stdout, val)
+			_, _ = fmt.Fprintln(stdout, val)
 		}
 	}
 }
