@@ -49,6 +49,7 @@ type smhiCondition struct {
 }
 
 const (
+	// Ensure this URL is still valid for the new API version. Left unchanged based on prompt context.
 	//smhiWuri = "https://opendata-download-metfcst.smhi.se/api/category/pmp3g/version/2/geotype/point/lon/%s/lat/%s/data.json"
 	smhiWuri = "https://opendata-download-metfcst.smhi.se/api/category/snow1g/version/1/geotype/point/lon/%s/lat/%s/data.json"
 )
@@ -195,7 +196,7 @@ func (c *smhiConfig) parsePrediction(prediction *smhiTimeSeries) (cnd iface.Cond
 	}
 	cnd.Time = ts
 
-	precip := float32(prediction.Data.PrecipitationAmountMean) // no need to convert this anymore
+	precip := float32(prediction.Data.PrecipitationAmountMean / 1000) // Convert mm/h to m/h
 	cnd.PrecipM = &precip
 
 	vis := float32(prediction.Data.VisibilityInAir * 1000) // Convert km to m
