@@ -5,25 +5,29 @@
 ## Features
 
 * show forecast for 1 to 7 days
-* nice ASCII art icons
-* displayed info (metric or imperial units):
+* multiple backends: `openweathermap`, `weatherapi`, `open-meteo`, `smhi`, `caiyun`, `worldweatheronline`, `pirateweather`, and `json`
+* multiple frontends: `ascii-art-table` (default), `emoji`, `markdown`, and `json`
+* displayed info:
   * temperature range ([felt](https://en.wikipedia.org/wiki/Wind_chill) and measured)
   * windspeed and direction
   * viewing distance
   * precipitation amount and probability
-* ssl, so the NSA has a harder time learning where you live or plan to go
+  * humidity
+* unit systems: `metric`, `imperial`, `si`, `metric-ms`
+* disk caching of weather data with configurable TTL (`--cache-ttl`)
 * multi language support
 * config file for default location which can be overridden by commandline
-* Automatic config management with [ingo](https://github.com/schachmat/ingo)
+* automatic config management with [ingo](https://github.com/schachmat/ingo)
+* built-in man page (`wego --man`)
+* composable via JSON: pipe data between the `json` backend and `json` frontend
 
 ## Dependencies
 
 * A [working](https://golang.org/doc/install#testing) [Go](https://golang.org/)
-  [1.20](https://golang.org/doc/go1.20) environment 
-* utf-8 terminal with 256 colors
-* A monospaced font containing all the required runes (I use `dejavu sans
-  mono`)
-* An API key for the backend (see Setup below)
+  [1.20](https://golang.org/doc/go1.20) environment
+* utf-8 terminal with 256 colors (for `ascii-art-table` and `emoji` frontends)
+* A monospaced font containing all the required runes (e.g. `dejavu sans mono`)
+* An API key for most backends (see Setup below; `open-meteo` and `smhi` are free and keyless)
 
 ## Installation
 
@@ -38,25 +42,12 @@ go install github.com/schachmat/wego@latest
 
 ## Setup
 
-0. Run `wego` once. You will get an error message, but the `.wegorc` config file
-   will be generated in your `$HOME` directory (it will be hidden in some file
-   managers due to the filename starting with a dot).
-0. __With an [Openweathermap](https://home.openweathermap.org/) account__
-    * You can create an account and get a free API key by [signing up](https://home.openweathermap.org/users/sign_up)
-    * Update the following `.wegorc` config variables to fit your needs:
-    ```
-      backend=openweathermap
-      location=New York
-      owm-api-key=YOUR_OPENWEATHERMAP_API_KEY_HERE
-    ```
-0. __With a [Worldweatheronline](http://www.worldweatheronline.com/) account__
-    * Worldweatheronline no longer gives out free API keys. [#83](https://github.com/schachmat/wego/issues/83)
-    * Update the following `.wegorc` config variables to fit your needs:
-    ```
-      backend=worldweatheronline
-      location=New York
-      wwo-api-key=YOUR_WORLDWEATHERONLINE_API_KEY_HERE
-    ```
+0. Run `wego` once. You will get an error message, but the `wegorc` config file
+   will be generated in your `$XDG_CONFIG_HOME/wego/` directory (or the
+   OS-equivalent location returned by
+   [`os.UserConfigDir()`](https://pkg.go.dev/os#UserConfigDir), e.g.
+   `~/.config/wego/wegorc` on Linux).
+0. Choose a backend and configure it (see below). Then run `wego` again.
 0. You may want to adjust other preferences like `days`, `units` and `…-lang` as
    well. Save the file.
 0. Run `wego` once again and you should get the weather forecast for the current
@@ -65,27 +56,94 @@ go install github.com/schachmat/wego@latest
    London` or `wego London 4` (the ordering of arguments makes no difference) to
    get the forecast for the current and the next 3 days.
 
-You can set the `$WEGORC` environment variable to override the default config
-file location.
+The config file is resolved in the following order:
+1. `$WEGORC` environment variable (highest precedence).
+2. `$XDG_CONFIG_HOME/wego/wegorc` (or OS equivalent via `os.UserConfigDir()`), if it exists.
+3. `$HOME/.wegorc` (legacy location, for backward compatibility), if it exists.
+4. If none of the above exist, a new config file is created at `$XDG_CONFIG_HOME/wego/wegorc`.
 
-## Todo
+### Backends
 
-* more [backends and frontends](https://github.com/schachmat/wego/wiki/How-to-write-a-new-backend-or-frontend)
-* resolve ALL the [issues](https://github.com/schachmat/wego/issues)
-* don't forget the [TODOs in the code](https://github.com/schachmat/wego/search?q=TODO&type=Code)
+__[Open-Meteo](https://open-meteo.com/)__ — free, no API key required:
+```
+backend=openmeteo
+location=New York
+```
 
-## License - ISC
+__[SMHI](https://www.smhi.se/)__ — free, no API key required (Sweden and surrounding areas):
+```
+backend=smhi
+location=59.33,18.07
+```
 
-Copyright (c) 2014-2017,  <teichm@in.tum.de>
+__[Openweathermap](https://home.openweathermap.org/)__ — free API key available:
+* [Sign up](https://home.openweathermap.org/users/sign_up) for a free API key.
+```
+backend=openweathermap
+location=New York
+owm-api-key=YOUR_OPENWEATHERMAP_API_KEY_HERE
+```
 
-Permission to use, copy, modify, and/or distribute this software for any purpose
-with or without fee is hereby granted, provided that the above copyright notice
-and this permission notice appear in all copies.
+__[WeatherAPI](https://www.weatherapi.com/)__ — free API key available:
+* [Sign up](https://www.weatherapi.com/signup.aspx) for a free API key.
+```
+backend=weatherapi
+location=New York
+weather-api-key=YOUR_WEATHERAPI_API_KEY_HERE
+```
 
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
-FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
-OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
-TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
-THIS SOFTWARE.
+__[Caiyun](https://caiyunapp.com/)__ — API key required (China-focused, supports Chinese):
+```
+backend=caiyun
+location=121.47,31.23
+caiyun-api-key=YOUR_CAIYUN_API_KEY_HERE
+```
+
+__[Worldweatheronline](http://www.worldweatheronline.com/)__ — no longer offers free API keys ([#83](https://github.com/schachmat/wego/issues/83)):
+```
+backend=worldweatheronline
+location=New York
+wwo-api-key=YOUR_WORLDWEATHERONLINE_API_KEY_HERE
+```
+
+__[Pirateweather](https://pirateweather.net/)__ — free API key available (requires lat,lon location):
+* [Sign up](https://pirateweather.net/getting-started) for a free API key.
+```
+backend=pirateweather.net
+location=40.71,-74.01
+pirateweather-api-key=YOUR_PIRATEWEATHER_API_KEY_HERE
+```
+
+__JSON file__ — read weather data from a local JSON file (useful for testing or offline use):
+```
+backend=json
+location=/path/to/weather.json
+```
+
+## Frontends
+
+Select a frontend with the `--frontend` flag or by setting `frontend=…` in `.wegorc`.
+
+| Frontend | Description |
+|---|---|
+| `ascii-art-table` | Default. Classic colored ASCII art table. |
+| `emoji` | Compact emoji-based display. |
+| `markdown` | Markdown table output. |
+| `json` | JSON output, suitable for piping to other tools. |
+
+Example: `wego --frontend emoji London`
+
+### Color Configuration
+
+Both `ascii-art-table` and `emoji` frontends display temperatures and wind
+speeds in color by default. To disable colors:
+
+* Pass `--monochrome` as a flag, or add it to `.wegorc` to make it permanent:
+  ```
+  monochrome=true
+  ```
+* Set the `NO_COLOR` environment variable (see [no-color.org](https://no-color.org/))
+  to disable colors without changing the config:
+  ```shell
+  NO_COLOR=1 wego
+  ```

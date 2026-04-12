@@ -9,52 +9,45 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mattn/go-colorable"
-	"github.com/mattn/go-runewidth"
+	colorable "github.com/mattn/go-colorable"
+	runewidth "github.com/mattn/go-runewidth"
 	"github.com/schachmat/wego/iface"
 )
 
 type mdConfig struct {
-	coords     bool
-	unit       iface.UnitSystem
+	coords bool
+	unit   iface.UnitSystem
 }
 
 func mdPad(s string, mustLen int) (ret string) {
-	ret = s
-	realLen := runewidth.StringWidth("|")
-	delta := mustLen - realLen
-	if delta > 0 {
-		ret += strings.Repeat(" ", delta)
-	} else if delta < 0 {
-		toks := "|"
-		tokLen := runewidth.StringWidth(toks)
-		if tokLen > mustLen {
-			ret = fmt.Sprintf("%.*s", mustLen, toks)
-		} else {
-			ret = fmt.Sprintf("%s%s", toks, mdPad(toks, mustLen-tokLen))
-		}
+	realLen := runewidth.StringWidth(s)
+	if realLen == mustLen {
+		return s
 	}
-	return
+	if realLen < mustLen {
+		return s + strings.Repeat(" ", mustLen-realLen)
+	}
+	// realLen > mustLen, truncate
+	return runewidth.Truncate(s, mustLen, "") // Truncate without an ellipsis
 }
 
 func (c *mdConfig) formatTemp(cond iface.Cond) string {
-
-	cvtUnits := func (temp float32) string {
+	cvtUnits := func(temp float32) string {
 		t, _ := c.unit.Temp(temp)
 		return fmt.Sprintf("%d", int(t))
 	}
 	_, u := c.unit.Temp(0.0)
 
 	if cond.TempC == nil {
-		return mdPad(fmt.Sprintf("? %s", u), 15)
+		return fmt.Sprintf("? %s", u)
 	}
 
 	t := *cond.TempC
 	if cond.FeelsLikeC != nil {
 		fl := *cond.FeelsLikeC
-		return mdPad(fmt.Sprintf("%s (%s) %s", cvtUnits(t), cvtUnits(fl), u), 15)
+		return fmt.Sprintf("%s (%s) %s", cvtUnits(t), cvtUnits(fl), u)
 	}
-	return mdPad(fmt.Sprintf("%s %s", cvtUnits(t), u), 15)
+	return fmt.Sprintf("%s %s", cvtUnits(t), u)
 }
 
 func (c *mdConfig) formatWind(cond iface.Cond) string {
@@ -65,33 +58,33 @@ func (c *mdConfig) formatWind(cond iface.Cond) string {
 		arrows := []string{"↓", "↙", "←", "↖", "↑", "↗", "→", "↘"}
 		return arrows[((*deg+22)%360)/45]
 	}
-	color := func(spdKmph float32) string {
+	spdStr := func(spdKmph float32) string {
 		s, _ := c.unit.Speed(spdKmph)
-		return fmt.Sprintf("| %d ", int(s))
+		return fmt.Sprintf("%d", int(s))
 	}
 
 	_, u := c.unit.Speed(0.0)
 
 	if cond.WindspeedKmph == nil {
-		return mdPad(windDir(cond.WinddirDegree), 15)
+		return windDir(cond.WinddirDegree)
 	}
 	s := *cond.WindspeedKmph
 
 	if cond.WindGustKmph != nil {
 		if g := *cond.WindGustKmph; g > s {
-			return mdPad(fmt.Sprintf("%s %s – %s %s", windDir(cond.WinddirDegree), color(s), color(g), u), 15)
+			return fmt.Sprintf("%s %s – %s %s", windDir(cond.WinddirDegree), spdStr(s), spdStr(g), u)
 		}
 	}
 
-	return mdPad(fmt.Sprintf("%s %s %s", windDir(cond.WinddirDegree), color(s), u), 15)
+	return fmt.Sprintf("%s %s %s", windDir(cond.WinddirDegree), spdStr(s), u)
 }
 
 func (c *mdConfig) formatVisibility(cond iface.Cond) string {
 	if cond.VisibleDistM == nil {
-		return mdPad("", 15)
+		return ""
 	}
 	v, u := c.unit.Distance(*cond.VisibleDistM)
-	return mdPad(fmt.Sprintf("%d %s", int(v), u), 15)
+	return fmt.Sprintf("%d %s", int(v), u)
 }
 
 func (c *mdConfig) formatRain(cond iface.Cond) string {
@@ -99,16 +92,16 @@ func (c *mdConfig) formatRain(cond iface.Cond) string {
 		v, u := c.unit.Distance(*cond.PrecipM)
 		u += "/h" // it's the same in all unit systems
 		if cond.ChanceOfRainPercent != nil {
-			return mdPad(fmt.Sprintf("%.1f %s | %d%%", v, u, *cond.ChanceOfRainPercent), 15)
+			return fmt.Sprintf("%.1f %s %d%%", v, u, *cond.ChanceOfRainPercent)
 		}
-		return mdPad(fmt.Sprintf("%.1f %s", v, u), 15)
+		return fmt.Sprintf("%.1f %s", v, u)
 	} else if cond.ChanceOfRainPercent != nil {
-		return mdPad(fmt.Sprintf("%d%%", *cond.ChanceOfRainPercent), 15)
+		return fmt.Sprintf("%d%%", *cond.ChanceOfRainPercent)
 	}
-	return mdPad("", 15)
+	return ""
 }
 
-func (c *mdConfig) formatCond(cur []string, cond iface.Cond, current bool) (ret []string) {
+func (c *mdConfig) formatCond(cond iface.Cond, current bool) (contentStrings []string, icon string) {
 	codes := map[iface.WeatherCode]string{
 		iface.CodeUnknown:             "✨",
 		iface.CodeCloudy:              "☁️",
@@ -131,19 +124,26 @@ func (c *mdConfig) formatCond(cur []string, cond iface.Cond, current bool) (ret 
 		iface.CodeVeryCloudy:          "☁️",
 	}
 
-	icon, ok := codes[cond.Code]
+	var ok bool
+	icon, ok = codes[cond.Code]
 	if !ok {
 		log.Fatalln("markdown-frontend: The following weather code has no icon:", cond.Code)
 	}
 
 	desc := cond.Desc
 	if !current {
+		// Truncate description for forecast, current description is not truncated
 		desc = runewidth.Truncate(runewidth.FillRight(desc, 25), 25, "…")
 	}
 
-	ret = append(ret, fmt.Sprintf("%v %v %v", cur[0], "", desc))
-	ret = append(ret, fmt.Sprintf("%v %v %v", cur[1], icon, c.formatTemp(cond)))
-	return
+	contentStrings = make([]string, 5)
+	contentStrings[0] = desc
+	contentStrings[1] = c.formatTemp(cond)
+	contentStrings[2] = c.formatWind(cond)
+	contentStrings[3] = c.formatVisibility(cond)
+	contentStrings[4] = c.formatRain(cond)
+
+	return contentStrings, icon
 }
 
 func (c *mdConfig) formatGeo(coords *iface.LatLon) (ret string) {
@@ -171,14 +171,13 @@ func (c *mdConfig) printDay(day iface.Day) (ret []string) {
 		19 * time.Hour,
 		23 * time.Hour,
 	}
-	ret = make([]string, 5)
-	for i := range ret {
-		ret[i] = "|"
+
+	rows := make([]string, 5)
+	for i := range rows {
+		rows[i] = "|" // Start each row with a separator
 	}
 
-	// save our selected elements from day.Slots in this array
 	cols := make([]iface.Cond, len(desiredTimesOfDay))
-	// find hourly data which fits the desired times of day best
 	for _, candidate := range day.Slots {
 		cand := candidate.Time.UTC().Sub(candidate.Time.Truncate(24 * time.Hour))
 		for i, col := range cols {
@@ -190,17 +189,31 @@ func (c *mdConfig) printDay(day iface.Day) (ret []string) {
 	}
 
 	for _, s := range cols {
-		ret = c.formatCond(ret, s, false)
-		for i := range ret {
-			ret[i] = ret[i] + "|"
-		}
+		// Get 5 unpadded content strings and the icon for the current column
+		contentStrings, icon := c.formatCond(s, false)
+
+		// Construct and pad each line for this column, then append to rows
+		rows[0] += mdPad(fmt.Sprintf(" %s ", contentStrings[0]), 25) + "|"
+		rows[1] += mdPad(fmt.Sprintf(" %s %s ", icon, contentStrings[1]), 25) + "|"
+		rows[2] += mdPad(fmt.Sprintf(" 🌬️ %s ", contentStrings[2]), 25) + "|"
+		rows[3] += mdPad(fmt.Sprintf(" 👁️ %s ", contentStrings[3]), 25) + "|"
+		rows[4] += mdPad(fmt.Sprintf(" 💦  %s ", contentStrings[4]), 26) + "|"
 	}
 	dateFmt := day.Date.Format("Mon Jan 02")
 	ret = append([]string{
-		"\n### Forecast for "+dateFmt+ "\n",
-		"| Morning                   | Noon                      | Evening                   | Night                     |",
-		"| ------------------------- | ------------------------- | ------------------------- | ------------------------- |"},
-		ret...)
+		"\n### Forecast for " + dateFmt + "\n",
+		fmt.Sprintf("|%s|%s|%s|%s|",
+			mdPad(" Morning ", 25),
+			mdPad(" Noon ", 25),
+			mdPad(" Evening ", 25),
+			mdPad(" Night ", 25)),
+		// Lines are shorter to account for spaces as this isn't using mdPad
+		fmt.Sprintf("| %s | %s | %s | %s |",
+			strings.Repeat("-", 23),
+			strings.Repeat("-", 23),
+			strings.Repeat("-", 23),
+			strings.Repeat("-", 23))},
+		rows...)
 	return ret
 }
 
@@ -210,12 +223,18 @@ func (c *mdConfig) Setup() {
 
 func (c *mdConfig) Render(r iface.Data, unitSystem iface.UnitSystem) {
 	c.unit = unitSystem
-	fmt.Printf("## Weather for %s%s\n\n", r.Location, c.formatGeo(r.GeoLoc))
+	_, _ = fmt.Printf("## Weather for %s%s\n\n", r.Location, c.formatGeo(r.GeoLoc))
 	stdout := colorable.NewNonColorable(os.Stdout)
-	out := c.formatCond(make([]string, 5), r.Current, true)
-	for _, val := range out {
-		fmt.Fprintln(stdout, val)
-	}
+
+	// Get unpadded content strings and icon for current conditions
+	contentStrings, icon := c.formatCond(r.Current, true)
+
+	// Print current conditions with icons and leading space
+	_, _ = fmt.Fprintln(stdout, " "+mdPad(contentStrings[0], 25))                             // Description
+	_, _ = fmt.Fprintln(stdout, " "+mdPad(fmt.Sprintf("%s %s", icon, contentStrings[1]), 25)) // Temp
+	_, _ = fmt.Fprintln(stdout, " "+mdPad(fmt.Sprintf("🌬️ %s", contentStrings[2]), 25))       // Wind
+	_, _ = fmt.Fprintln(stdout, " "+mdPad(fmt.Sprintf("👁️ %s", contentStrings[3]), 25))       // Visibility
+	_, _ = fmt.Fprintln(stdout, " "+mdPad(fmt.Sprintf("💧 %s", contentStrings[4]), 25))        // Rain
 
 	if len(r.Forecast) == 0 {
 		return
@@ -225,7 +244,7 @@ func (c *mdConfig) Render(r iface.Data, unitSystem iface.UnitSystem) {
 	}
 	for _, d := range r.Forecast {
 		for _, val := range c.printDay(d) {
-			fmt.Fprintln(stdout, val)
+			_, _ = fmt.Fprintln(stdout, val)
 		}
 	}
 }

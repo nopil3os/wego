@@ -73,8 +73,8 @@ type wwoConfig struct {
 }
 
 const (
-	wwoSuri = "https://api.worldweatheronline.com/free/v2/search.ashx?"
-	wwoWuri = "https://api.worldweatheronline.com/free/v2/weather.ashx?"
+	wwoSuri = "https://api.worldweatheronline.com/premium/v1/search.ashx?"
+	wwoWuri = "https://api.worldweatheronline.com/premium/v1/weather.ashx?"
 )
 
 func wwoParseCond(cond wwoCond, date time.Time) (ret iface.Cond) {
@@ -135,7 +135,7 @@ func wwoParseCond(cond wwoCond, date time.Time) (ret iface.Cond) {
 		ret.Code = val
 	}
 
-	if cond.TmpDesc != nil && len(cond.TmpDesc) > 0 {
+	if len(cond.TmpDesc) > 0 {
 		ret.Desc = cond.TmpDesc[0].Value
 	}
 
@@ -182,7 +182,7 @@ func wwoParseDay(day wwoDay, index int) (ret iface.Day) {
 		ret.Date = date
 	}
 
-	if day.Hourly != nil && len(day.Hourly) > 0 {
+	if len(day.Hourly) > 0 {
 		for _, slot := range day.Hourly {
 			ret.Slots = append(ret.Slots, wwoParseCond(slot, date))
 		}
@@ -257,6 +257,11 @@ func (c *wwoConfig) getCoordinatesFromAPI(queryParams []string, res chan *iface.
 	var coordResp wwoCoordinateResp
 	requri := wwoSuri + strings.Join(queryParams, "&")
 	hres, err := http.Get(requri)
+
+	if c.debug {
+		log.Println("Geo location request:", requri)
+	}
+
 	if err != nil {
 		log.Println("Unable to fetch geo location:", err)
 		res <- nil
@@ -269,6 +274,7 @@ func (c *wwoConfig) getCoordinatesFromAPI(queryParams []string, res chan *iface.
 	defer hres.Body.Close()
 
 	body, err := io.ReadAll(hres.Body)
+
 	if err != nil {
 		log.Println("Unable to read geo location data:", err)
 		res <- nil
@@ -276,7 +282,6 @@ func (c *wwoConfig) getCoordinatesFromAPI(queryParams []string, res chan *iface.
 	}
 
 	if c.debug {
-		log.Println("Geo location request:", requri)
 		log.Println("Geo location response:", string(body))
 	}
 
@@ -349,8 +354,8 @@ func (c *wwoConfig) Fetch(loc string, numdays int) iface.Data {
 		}
 	}
 
-	if resp.Data.Req == nil || len(resp.Data.Req) < 1 {
-		if resp.Data.Err != nil && len(resp.Data.Err) >= 1 {
+	if len(resp.Data.Req) < 1 {
+		if len(resp.Data.Err) >= 1 {
 			log.Fatal(resp.Data.Err[0].Msg)
 		}
 		log.Fatal("Malformed response.")
@@ -359,7 +364,7 @@ func (c *wwoConfig) Fetch(loc string, numdays int) iface.Data {
 	ret.Location = resp.Data.Req[0].Type + ": " + resp.Data.Req[0].Query
 	ret.GeoLoc = <-coordChan
 
-	if resp.Data.CurCond != nil && len(resp.Data.CurCond) > 0 {
+	if len(resp.Data.CurCond) > 0 {
 		ret.Current = wwoParseCond(resp.Data.CurCond[0], time.Now())
 	}
 
