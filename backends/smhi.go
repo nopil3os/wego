@@ -49,7 +49,6 @@ type smhiCondition struct {
 }
 
 const (
-	// Ensure this URL is still valid for the new API version. Left unchanged based on prompt context.
 	//smhiWuri = "https://opendata-download-metfcst.smhi.se/api/category/pmp3g/version/2/geotype/point/lon/%s/lat/%s/data.json"
 	smhiWuri = "https://opendata-download-metfcst.smhi.se/api/category/snow1g/version/1/geotype/point/lon/%s/lat/%s/data.json"
 )
