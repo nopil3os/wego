@@ -204,9 +204,14 @@ func (c *smhiConfig) parsePrediction(prediction *smhiTimeSeries) (cnd iface.Cond
 	temp := float32(prediction.Data.AirTemperature)
 	cnd.TempC = &temp
 
-	condition := weatherConditions[int(prediction.Data.SymbolCode)]
-	cnd.Code = condition.WeatherCode
-	cnd.Desc = condition.Description
+	symbolCode := int(prediction.Data.SymbolCode)
+	if condition, ok := weatherConditions[symbolCode]; ok {
+		cnd.Code = condition.WeatherCode
+		cnd.Desc = condition.Description
+	} else {
+		cnd.Code = iface.CodeUnknown
+		cnd.Desc = fmt.Sprintf("Unknown weather condition (symbol code %d)", symbolCode)
+	}
 
 	windSpeed := float32(prediction.Data.WindSpeed * 3.6) // convert m/s to km/h
 	cnd.WindspeedKmph = &windSpeed
